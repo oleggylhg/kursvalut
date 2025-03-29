@@ -1,45 +1,46 @@
-import logging  
-import requests  
-import asyncio  
-import os  
-from aiogram import Bot, Dispatcher  
-from aiogram.types import ParseMode  
-from apscheduler.schedulers.asyncio import AsyncIOScheduler  
+import requests
+import telebot
+import logging
+import time
+from datetime import datetime
 
-# Токен бота и ID группы  
-BOT_TOKEN = os.getenv("BOT_TOKEN")  
-CHAT_ID = os.getenv("CHAT_ID")  
+# Настройки
+BOT_TOKEN = "7619596787:AAFZuMNKjBFSY8fnKxY1ckIfB7kEdPH2GnI"
+CHAT_ID = "-1001521182831"
+PRIVAT_API_URL = "https://api.privatbank.ua/p24api/pubinfo?exchange&json&coursid=5"
 
-# URL API НБУ  
-NBU_API_URL = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json"  
+# Логирование
+logging.basicConfig(level=logging.INFO)
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Настройка логирования  
-logging.basicConfig(level=logging.INFO)  
-bot = Bot(token=BOT_TOKEN)  
-dp = Dispatcher()  
+def fetch_exchange_rates():
+    """Получает курс валют (покупка и продажа) и отправляет в Telegram"""
+    try:
+        response = requests.get(PRIVAT_API_URL).json()
+        rates = {item["ccy"]: item for item in response}
 
-async def fetch_exchange_rates():  
-    try:  
-        response = requests.get(NBU_API_URL).json()  
-        rates = {item["cc"]: item["rate"] for item in response}  
+        text = f"""📢 Курс валют (ПриватБанк) на сегодня:  
+🇺🇸 USD  
+➖ Покупка: {rates['USD']['buy']} грн  
+➕ Продажа: {rates['USD']['sale']} грн  
 
-        text = f"""📢 Курс валют на сегодня:  
-🇺🇸 1 USD = {rates.get('USD', 'N/A')} грн  
-🇪🇺 1 EUR = {rates.get('EUR', 'N/A')} грн  
-🇬🇧 1 GBP = {rates.get('GBP', 'N/A')} грн  
-🇵🇱 1 PLN = {rates.get('PLN', 'N/A')} грн"""  
+🇪🇺 EUR  
+➖ Покупка: {rates['EUR']['buy']} грн  
+➕ Продажа: {rates['EUR']['sale']} грн  
 
-        await bot.send_message(CHAT_ID, text, parse_mode=ParseMode.MARKDOWN)  
-    except Exception as e:  
-        logging.error(f"Ошибка получения курса валют: {e}")  
+🇵🇱 PLN  
+➖ Покупка: {rates['PLN']['buy']} грн  
+➕ Продажа: {rates['PLN']['sale']} грн"""
 
-# Планировщик задач  
-scheduler = AsyncIOScheduler()  
-scheduler.add_job(fetch_exchange_rates, "cron", hour=7, minute=0)  
+        bot.send_message(CHAT_ID, text, parse_mode="Markdown")
+        logging.info("Курс валют отправлен")
+    except Exception as e:
+        logging.error(f"Ошибка получения курса: {e}")
 
-async def main():  
-    scheduler.start()  
-    await dp.start_polling(bot)  
-
-if name == "main":  
-    asyncio.run(main())
+# Запуск отправки сообщений по расписанию
+while True:
+    now = datetime.now()
+    if now.hour == 7 and now.minute == 0:
+        fetch_exchange_rates()
+        time.sleep(60)  # Ждём 1 минуту, чтобы не отправлять несколько раз
+    time.sleep(30)  # Проверяем время каждые 30 секунд
